@@ -1,0 +1,16 @@
+# Filled-in copies of the script (contain real keys/passwords)
+*.local.rsc
+secrets/
+*.key
+*.pub
+*.conf
+
+# RouterOS exports and backups
+*.backup
+*.npk
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
