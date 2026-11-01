@@ -1,5 +1,5 @@
 # =====================================================================
-#  MikroTik WireGuard Auto-Deploy  v1.0.0
+#  MikroTik WireGuard Auto-Deploy  v1.1.0
 #  Site-to-site WireGuard client for RouterOS v7+, deployed in one paste.
 #  https://github.com/antkarag13/mikrotik-wireguard-autodeploy
 #
@@ -7,7 +7,7 @@
 #    patches the firewall/NAT rules to match it
 #  - /32 bypass route to the VPN endpoint (avoids the 0.0.0.0/0 loop)
 #  - NETMAP so overlapping customer LANs are reachable via a mask subnet
-#  - Hidden management Wi-Fi on wlan1 with its own DHCP pool
+#  - Optional hidden management Wi-Fi on wlan1 with its own DHCP pool
 #  - Netwatch-driven LED that shows tunnel status
 #
 #  Fill in the variables below before pasting into the router terminal.
@@ -32,8 +32,11 @@
 :local maskSubnet "10.0.X.0/24";          # unique mask subnet for this site's LAN
 #
 # ---------------------------------------------------------------------
-# 3. Management Wi-Fi
+# 3. Management Wi-Fi (optional)
+#    Set mgmtWifi to false on boards without wlan1, or if you don't want
+#    out-of-band access; mgmtSsid/mgmtPass are then ignored.
 # ---------------------------------------------------------------------
+:local mgmtWifi true;
 :local mgmtSsid "YOUR-MGMT-SSID";
 :local mgmtPass "YOUR-STRONG-WIFI-PASSWORD";
 #
@@ -67,15 +70,20 @@
     :log info \"WG-Auto: VPN rules patched successfully.\"; \
 }"
 
-# 2. MANAGEMENT WI-FI (hidden SSID, own subnet)
+# 2. MANAGEMENT WI-FI (optional: hidden SSID, own subnet)
 #    Uses the legacy "wireless" package (/interface/wireless).
 #    Out-of-band access to the router even when the LAN or VPN is down.
-/interface/wireless/security-profiles add name=mgmt-profile mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=$mgmtPass
-/interface/wireless set [find default-name=wlan1] mode=ap-bridge ssid=$mgmtSsid hide-ssid=yes security-profile=mgmt-profile band=2ghz-b/g/n frequency=auto disabled=no
-/ip/address add address=192.168.99.1/24 interface=wlan1 comment="Management Wi-Fi"
-/ip/pool add name=mgmt-pool ranges=192.168.99.10-192.168.99.50
-/ip/dhcp-server add name=mgmt-dhcp interface=wlan1 address-pool=mgmt-pool disabled=no
-/ip/dhcp-server/network add address=192.168.99.0/24 gateway=192.168.99.1 dns-server=8.8.8.8,1.1.1.1
+:if ($mgmtWifi) do={
+    /interface/wireless/security-profiles add name=mgmt-profile mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=$mgmtPass
+    /interface/wireless set [find default-name=wlan1] mode=ap-bridge ssid=$mgmtSsid hide-ssid=yes security-profile=mgmt-profile band=2ghz-b/g/n frequency=auto disabled=no
+    /ip/address add address=192.168.99.1/24 interface=wlan1 comment="Management Wi-Fi"
+    /ip/pool add name=mgmt-pool ranges=192.168.99.10-192.168.99.50
+    /ip/dhcp-server add name=mgmt-dhcp interface=wlan1 address-pool=mgmt-pool disabled=no
+    /ip/dhcp-server/network add address=192.168.99.0/24 gateway=192.168.99.1 dns-server=8.8.8.8,1.1.1.1
+    /ip/firewall/filter add chain=input in-interface=wlan1 action=accept comment="Allow Management via WLAN"
+} else={
+    :log info "Management Wi-Fi skipped (mgmtWifi=false).";
+}
 
 # 3. WIREGUARD
 #    MTU 1280 leaves headroom for WireGuard + PPPoE/LTE overhead upstream.
@@ -91,7 +99,7 @@
 #    Inbound flow: peer -> maskSubnet --NETMAP--> real LAN host,
 #    source masqueraded so LAN hosts reply via this router without
 #    needing a route back to the tunnel subnet.
-/ip/firewall/filter add chain=input in-interface=wlan1 action=accept comment="Allow Management via WLAN"
+#    (The "Allow Management via WLAN" input rule is added in section 2.)
 /ip/firewall/filter add chain=input in-interface=wg-client action=accept comment="Allow WG Input"
 /ip/firewall/filter add chain=forward in-interface=wg-client action=accept comment="Allow WG Forwarding to LAN"
 # NETMAP needs to-addresses at creation: it starts disabled and the DHCP

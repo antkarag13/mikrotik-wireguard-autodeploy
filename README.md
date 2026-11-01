@@ -13,7 +13,7 @@ site uses `192.168.1.0/24` too. This script removes those steps:
 - The router is just a **DHCP client** on the existing LAN. No changes to the customer's router.
 - When it gets a lease, it **detects the LAN subnet** and patches its own rules.
 - Each site gets a **unique mask subnet** (NETMAP), so overlapping LANs are no problem.
-- A **hidden management Wi-Fi** gives you a way in even if the LAN or tunnel is broken.
+- An optional **hidden management Wi-Fi** gives you a way in even if the LAN or tunnel is broken.
 
 ## Features
 
@@ -22,7 +22,7 @@ site uses `192.168.1.0/24` too. This script removes those steps:
 - 1:1 **NETMAP** from a per-site mask subnet to the real LAN, for overlapping subnets
 - Masquerade for inbound peers, so LAN hosts need no route back to the tunnel
 - Masquerade for outbound traffic into the tunnel
-- Hidden management SSID on `wlan1` with its own subnet and DHCP pool (`192.168.99.0/24`)
+- Optional hidden management SSID on `wlan1` with its own subnet and DHCP pool (`192.168.99.0/24`); turn it off with `mgmtWifi false`
 - Netwatch-driven status LED: on = tunnel up
 - All settings in one block at the top of the script
 
@@ -34,7 +34,7 @@ flowchart LR
     UP["Upstream router<br/>(DHCP)"]
     MT["MikroTik<br/>ether1 DHCP client<br/>wg-client 10.8.0.X"]
     LAN["Site LAN<br/>auto-detected"]
-    W["Mgmt laptop<br/>hidden SSID"]
+    W["Mgmt laptop<br/>hidden SSID (optional)"]
     UP --- MT
     UP --- LAN
     W -. wlan1 .- MT
@@ -48,7 +48,8 @@ See [docs/topology.md](docs/topology.md) for the full diagram and a packet walk-
 
 - MikroTik device running **RouterOS v7.0 or newer** (WireGuard support)
 - `ether1` connected to the site LAN, which has a DHCP server with Internet access
-- `wlan1` using the legacy **`wireless`** package (`/interface/wireless`), for the management Wi-Fi
+- Only if `mgmtWifi` is `true`: `wlan1` using the legacy **`wireless`** package (`/interface/wireless`).
+  Boards without Wi-Fi work fine with `mgmtWifi false`.
 - A working WireGuard server, with this client already added as a peer:
   - the client's public key
   - a preshared key
@@ -80,7 +81,8 @@ See [docs/topology.md](docs/topology.md) for the full diagram and a packet walk-
    | `wgServerIp` | `10.8.0.1` | server tunnel IP (used by the LED check) |
    | `peerSubnet` | `10.8.0.0/24` | whole tunnel subnet |
    | `maskSubnet` | `10.0.42.0/24` | this site's unique mask subnet |
-   | `mgmtSsid` / `mgmtPass` | | management Wi-Fi credentials |
+   | `mgmtWifi` | `true` | create the hidden management Wi-Fi (`false` to skip it) |
+   | `mgmtSsid` / `mgmtPass` | | management Wi-Fi credentials (ignored if `mgmtWifi` is `false`) |
 
 4. **Connect** to the router (WinBox via MAC, or a cable) and paste the whole file into the
    terminal. The outer `{ ... }` block makes it run as a single unit.
@@ -147,8 +149,9 @@ defaults before deploying.
 - **Default config:** rules are appended to the end of the chains. On a device with the
   default firewall they may sit below a drop rule. Deploy on a `no-defaults` reset.
 - **Wireless package:** section 2 uses `/interface/wireless`. Devices running the newer
-  `wifi` (wifiwave2) package need that section rewritten for `/interface/wifi`.
-- **Interface names are fixed:** `ether1` (WAN/LAN) and `wlan1` (management).
+  `wifi` (wifiwave2) package need that section rewritten for `/interface/wifi`, or can
+  set `mgmtWifi false` to skip it.
+- **Interface names are fixed:** `ether1` (WAN/LAN) and `wlan1` (management, if enabled).
 - **Endpoint IP is resolved on lease**, not continuously (see Troubleshooting).
 - **IPv4 only.**
 - **Wide-open trust from the tunnel:** `input` and `forward` from `wg-client` are accepted.

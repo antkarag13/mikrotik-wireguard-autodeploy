@@ -12,7 +12,7 @@ flowchart LR
         UP["Upstream router / ISP<br/>(DHCP server)"]
         MT["MikroTik (RouterOS v7+)<br/>ether1: DHCP client<br/>wg-client: 10.8.0.X/24"]
         LAN["Site LAN hosts<br/>e.g. 192.168.1.0/24<br/>(auto-detected)"]
-        W["Management laptop<br/>hidden SSID on wlan1<br/>192.168.99.0/24"]
+        W["Management laptop (optional)<br/>hidden SSID on wlan1<br/>192.168.99.0/24"]
         UP --- MT
         UP --- LAN
         W -. "wlan1" .- MT
